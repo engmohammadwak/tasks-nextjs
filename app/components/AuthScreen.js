@@ -59,6 +59,7 @@ export default function AuthScreen() {
       showToast(error.message, true);
     } else {
       showToast('تم إنشاء الحساب! تحقق من بريدك لتأكيده');
+      setTimeout(() => setMode('login'), 2500);
     }
   };
 
@@ -199,7 +200,7 @@ export default function AuthScreen() {
       </div>
 
       {toast && (
-        <div className="toast active" style={toast.isError ? { background: '#DC2626' } : {}}>
+        <div className="toast show" style={toast.isError ? { background: '#DC2626' } : {}}>
           {toast.msg}
         </div>
       )}
