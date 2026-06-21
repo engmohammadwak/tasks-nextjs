@@ -11,10 +11,9 @@ export default function TasksApp({ session }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
-  const [addType, setAddType] = useState('task'); // task | meeting | reminder
+  const [addType, setAddType] = useState('task');
   const [toast, setToast] = useState(null);
 
-  // Form fields for new task
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState('work');
   const [newDate, setNewDate] = useState('');
@@ -24,7 +23,6 @@ export default function TasksApp({ session }) {
     setTimeout(() => setToast(null), 2000);
   };
 
-  // Load all data
   const loadData = async () => {
     setLoading(true);
     const userId = session.user.id;
@@ -33,13 +31,26 @@ export default function TasksApp({ session }) {
       supabase.from('tasks').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
       supabase.from('meetings').select('*').eq('user_id', userId).order('meeting_date'),
       supabase.from('reminders').select('*').eq('user_id', userId).order('reminder_date'),
-      supabase.from('profiles').select('*').eq('id', userId).single(),
+      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     ]);
 
     if (tasksRes.data) setTasks(tasksRes.data);
     if (meetingsRes.data) setMeetings(meetingsRes.data);
     if (remindersRes.data) setReminders(remindersRes.data);
     if (profileRes.data) setProfile(profileRes.data);
+    else {
+      // Create profile if not exists
+      const { data: newProfile } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          full_name: session.user.user_metadata?.full_name || null,
+          phone: session.user.user_metadata?.phone || null,
+        })
+        .select()
+        .maybeSingle();
+      if (newProfile) setProfile(newProfile);
+    }
     setLoading(false);
   };
 
@@ -80,7 +91,6 @@ export default function TasksApp({ session }) {
       .from('tasks')
       .update({ completed: !task.completed })
       .eq('id', task.id);
-
     if (!error) {
       setTasks(tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t));
     }
@@ -128,7 +138,6 @@ export default function TasksApp({ session }) {
   return (
     <div className="app">
       <div className="content-area">
-        {/* Tasks Page */}
         {activePage === 'tasks' && (
           <section className="page active">
             <div className="top-bar">
@@ -146,7 +155,6 @@ export default function TasksApp({ session }) {
                 </button>
               </div>
             </div>
-
             <div className="scroll">
               {tasks.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8693A8' }}>
@@ -159,11 +167,7 @@ export default function TasksApp({ session }) {
                   {tasks.map((t) => (
                     <div className="task-wrapper" key={t.id}>
                       <div className={`task ${t.completed ? 'completed' : ''}`}>
-                        <button
-                          className={`checkbox ${t.completed ? 'done' : ''}`}
-                          onClick={() => toggleTask(t)}
-                          aria-label="إكمال"
-                        >
+                        <button className={`checkbox ${t.completed ? 'done' : ''}`} onClick={() => toggleTask(t)} aria-label="إكمال">
                           {t.completed && (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="20 6 9 17 4 12"/>
@@ -182,16 +186,12 @@ export default function TasksApp({ session }) {
                               </svg>
                               {formatDate(t.due_date)}
                             </span>
-                            <span className="priority" style={{ background: typeColors[t.task_type] + '15', color: typeColors[t.task_type] }}>
-                              {typeLabels[t.task_type]}
+                            <span className="priority" style={{ background: (typeColors[t.task_type] || '#1E3A5F') + '15', color: typeColors[t.task_type] || '#1E3A5F' }}>
+                              {typeLabels[t.task_type] || t.task_type}
                             </span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => deleteTask(t.id)}
-                          style={{ background: 'none', color: '#DC2626', padding: '6px', display: 'flex' }}
-                          aria-label="حذف"
-                        >
+                        <button onClick={() => deleteTask(t.id)} style={{ background: 'none', color: '#DC2626', padding: '6px', display: 'flex' }} aria-label="حذف">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -206,12 +206,9 @@ export default function TasksApp({ session }) {
           </section>
         )}
 
-        {/* Meetings Page */}
         {activePage === 'meetings' && (
           <section className="page active">
-            <div className="top-bar">
-              <h2>اجتماعاتي</h2>
-            </div>
+            <div className="top-bar"><h2>اجتماعاتي</h2></div>
             <div className="scroll">
               {meetings.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8693A8' }}>
@@ -222,9 +219,7 @@ export default function TasksApp({ session }) {
                 meetings.map((m) => (
                   <div key={m.id} className="meeting-card">
                     <h3>{m.title}</h3>
-                    <p style={{ fontSize: '13px', color: '#8693A8', marginTop: '6px' }}>
-                      {m.meeting_date} · {m.meeting_time?.slice(0, 5)}
-                    </p>
+                    <p style={{ fontSize: '13px', color: '#8693A8', marginTop: '6px' }}>{m.meeting_date}</p>
                   </div>
                 ))
               )}
@@ -232,12 +227,9 @@ export default function TasksApp({ session }) {
           </section>
         )}
 
-        {/* Reminders Page */}
         {activePage === 'reminders' && (
           <section className="page active">
-            <div className="top-bar">
-              <h2>التذكيرات</h2>
-            </div>
+            <div className="top-bar"><h2>التذكيرات</h2></div>
             <div className="scroll">
               {reminders.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8693A8' }}>
@@ -255,15 +247,12 @@ export default function TasksApp({ session }) {
           </section>
         )}
 
-        {/* Settings Page */}
         {activePage === 'settings' && (
           <section className="page active">
-            <div className="top-bar">
-              <h2>الإعدادات</h2>
-            </div>
+            <div className="top-bar"><h2>الإعدادات</h2></div>
             <div className="scroll">
-              <div className="profile-card" style={{ marginTop: 8, padding: '14px 4px 18px', display: 'flex', gap: 14, alignItems: 'center', background: 'transparent', border: 'none' }}>
-                <div className="profile-avatar" style={{ width: 56, height: 56, borderRadius: 18, background: '#162A47', color: 'white', display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 18, flexShrink: 0 }}>
+              <div style={{ marginTop: 8, padding: '14px 4px 18px', display: 'flex', gap: 14, alignItems: 'center' }}>
+                <div style={{ width: 56, height: 56, borderRadius: 18, background: '#162A47', color: 'white', display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 18, flexShrink: 0 }}>
                   {profile?.full_name?.[0] || session.user.email[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
@@ -271,29 +260,21 @@ export default function TasksApp({ session }) {
                   <p style={{ fontSize: '12.5px', color: '#8693A8', marginTop: 2 }}>{session.user.email}</p>
                 </div>
               </div>
-
-              <div className="settings-section" style={{ marginTop: 16 }}>
-                <div className="settings-group">
-                  <button className="setting-row" onClick={handleLogout}>
-                    <div className="setting-icon danger">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                        <polyline points="16 17 21 12 16 7"/>
-                        <line x1="21" y1="12" x2="9" y2="12"/>
-                      </svg>
-                    </div>
-                    <div className="setting-content">
-                      <div className="name" style={{ color: '#DC2626' }}>تسجيل الخروج</div>
-                    </div>
-                  </button>
-                </div>
+              <div style={{ marginTop: 16 }}>
+                <button className="setting-row" onClick={handleLogout} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'white', border: '1px solid #EEF0F4', borderRadius: 14 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                  <span style={{ color: '#DC2626', fontWeight: 600, fontSize: 14 }}>تسجيل الخروج</span>
+                </button>
               </div>
             </div>
           </section>
         )}
       </div>
 
-      {/* Bottom Nav */}
       <nav className="bottom-nav">
         <button className={`nav-item ${activePage === 'tasks' ? 'active' : ''}`} onClick={() => setActivePage('tasks')}>
           <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -332,7 +313,6 @@ export default function TasksApp({ session }) {
         </button>
       </nav>
 
-      {/* Add Task Modal */}
       {showAdd && (
         <>
           <div className="modal-backdrop active" onClick={() => setShowAdd(false)} />
@@ -340,64 +320,31 @@ export default function TasksApp({ session }) {
             <div className="sheet-handle" />
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>مهمة جديدة</h3>
             <p style={{ fontSize: 13, color: '#8693A8', marginBottom: 18 }}>أضف مهمة لإنجازها</p>
-
             <div className="form-field" style={{ marginBottom: 14 }}>
               <label>عنوان المهمة</label>
-              <input
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="مثال: مراجعة العرض التقديمي"
-                autoFocus
-              />
+              <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="مثال: مراجعة العرض التقديمي" autoFocus />
             </div>
-
             <div className="form-field" style={{ marginBottom: 14 }}>
               <label>التاريخ (اختياري)</label>
-              <input
-                type="date"
-                value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
-              />
+              <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
             </div>
-
             <div className="form-field" style={{ marginBottom: 18 }}>
               <label>النوع</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {Object.entries(typeLabels).map(([k, v]) => (
-                  <button
-                    key={k}
-                    onClick={() => setNewType(k)}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 99,
-                      background: newType === k ? '#0A1628' : '#F4F6FA',
-                      color: newType === k ? 'white' : '#0A1628',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {v}
-                  </button>
+                  <button key={k} onClick={() => setNewType(k)} style={{ padding: '8px 16px', borderRadius: 99, background: newType === k ? '#0A1628' : '#F4F6FA', color: newType === k ? 'white' : '#0A1628', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>{v}</button>
                 ))}
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>
-                إلغاء
-              </button>
-              <button className="btn btn-primary" style={{ flex: 2 }} onClick={addTask}>
-                إضافة المهمة
-              </button>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAdd(false)}>إلغاء</button>
+              <button className="btn btn-primary" style={{ flex: 2 }} onClick={addTask}>إضافة المهمة</button>
             </div>
           </div>
         </>
       )}
 
-      {toast && <div className="toast active">{toast}</div>}
+      {toast && <div className="toast show">{toast}</div>}
     </div>
   );
 }
